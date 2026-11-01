@@ -1,3 +1,39 @@
-1.from the project, how to collapse every project folder
 
-tree -I 'virenv|__pycache__'(run in your terminal)
+
+FastAPI project structure — Completed.
+
+
+
+Backend request flow — Completed.
+
+
+
+Ethereum connection — In progress (Topic 3).
+
+
+
+Transaction history and details.
+
+
+
+ERC-20 token balances and transfers.
+
+
+
+PostgreSQL + SQLAlchemy (database).
+
+
+
+AI transaction explanations using an LLM.
+
+
+
+RAG.
+
+
+
+Unusual activity and risk detection.
+
+
+
+Docker, testing and deployment.
