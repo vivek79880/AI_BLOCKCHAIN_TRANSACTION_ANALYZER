@@ -21,15 +21,23 @@ def get_transaction_details(tx_hash):
 
     }
 
-def get_transaction_receipt(tx_hash):
+def get_transaction_receipt(tx_hash:str):
     receipt = web3.eth.get_transaction_receipt(tx_hash)
+    fee_in_wei = receipt["gasUsed"] * receipt["effectiveGasPrice"]
+    
     return{
         
         "transaction_hash": web3.to_hex(receipt["transactionHash"]),
         "status": receipt["status"],
         "block_number": receipt["blockNumber"],
-        "gas_used": receipt["gasUsed"]
+        "gas_used": receipt["gasUsed"],
+        "gas_fee_eth": str(web3.from_wei(fee_in_wei, "ether")),
+
+
     }
+
+
+
     
 
 
