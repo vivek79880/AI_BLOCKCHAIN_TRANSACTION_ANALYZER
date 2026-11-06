@@ -15,6 +15,7 @@ def get_wallet_balance(address:str):
     balance_wei = web3.eth.get_balance(address)
     balance_eth = web3.from_wei(balance_wei, "ether")
     return f"{balance_eth} ETH"
+    
 
 
 

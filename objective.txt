@@ -1,39 +1,48 @@
 
 
 FastAPI project structure — Completed.
-
-
-
 Backend request flow — Completed.
-
-
-
 Ethereum connection — In progress (Topic 3).
-
-
-
 Transaction history and details.
-
-
-
 ERC-20 token balances and transfers.
-
-
-
 PostgreSQL + SQLAlchemy (database).
 
-
-
 AI transaction explanations using an LLM.
-
-
-
 RAG.
 
-
-
 Unusual activity and risk detection.
-
-
-
 Docker, testing and deployment.
+
+What will AI actually do?
+Imagine a user enters an Ethereum wallet address.
+
+Your application will:
+1. Fetch the wallet's transaction history.
+2. Collect transaction amounts, recipients, gas fees and timestamps.
+3. Pass this structured data to an LLM.
+4. Generate useful explanations and insights.
+
+Three major AI features
+1. Transaction Explanation
+
+User asks: "What happened in this transaction?"
+
+AI explains:
+- Where the ETH went.
+- How much was transferred.
+- How much gas was spent.
+- Whether the transaction succeeded.
+2. Wallet Activity Q&A
+
+User asks:
+- "How much ETH did I spend this month?"
+- "Which wallet did I interact with most?"
+- "Summarize my last 10 transactions."
+AI answers using the wallet's actual transaction data.
+
+3. Unusual Activity Detection
+
+AI helps explain patterns such as:
+- Sudden large transfers.
+- Repeated transfers to unfamiliar addresses.
+- Unusual transaction frequency.
