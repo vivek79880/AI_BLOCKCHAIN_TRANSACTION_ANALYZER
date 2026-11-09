@@ -11,15 +11,72 @@ def get_wallet_transaction(wallet_address:str):
     latest_block = web3.eth.block_number
     start_block = max(latest_block - 10000, 0)
 
-    params = {
-    "fromAddress": wallet_address,
-    "category": ["external", "internal", "erc20"],
-    "fromBlock": hex(start_block),
-    "toBlock": "latest"
-    }
-    response = web3.provider.make_request("alchemy_getAssetTransfers",[params])
+    outgoing = []
+    page_key = None
+
+    while True:
+        params = {
+        "fromAddress": wallet_address,
+        "category": ["external", "internal", "erc20"],
+        "fromBlock": hex(start_block),
+        "toBlock": "latest"
+        }
+        if page_key:
+            params["pageKey"] = page_key
+        response = web3.provider.make_request("alchemy_getAssetTransfers",[params])
+        print("OUTGOING RESPONSE:", response)
+        
+        if "error" in response:
+            raise Exception(response["error"]["message"])
+        
+        result = response["result"]
+        outgoing.extend(result["transfers"])
+        page_key = result.get("pageKey")
+        if not page_key:
+            break
+
+    incoming = []
+    page_key = None
+    
+    while True:
 
 
+        received_params = {
+        "toAddress": wallet_address,
+        "category": ["external", "internal", "erc20"],
+        "fromBlock": hex(start_block),
+        "toBlock": "latest"
+        }
+
+        received_response = web3.provider.make_request(
+            "alchemy_getAssetTransfers",
+            [received_params]
+        )
+        print("INCOMING RESPONSE:", received_response)
+        if "error" in received_response:
+            raise Exception(received_response["error"]["message"])
+        
+        result = response["result"]
+        outgoing.extend(result["transfers"])
+
+        page_key = result.get("pageKey")
+
+        if not page_key:
+            break
+
+    outgoing = response["result"]["transfers"]
+    incoming = received_response["result"]["transfers"]
+
+    all_transfers = outgoing + incoming
+    unique_transfers = {
+                        transfer["uniqueId"]: transfer
+                        for transfer in all_transfers
+                    }
+    all_transfers = list(unique_transfers.values())
+    
+    return all_transfers    
+
+# A user provides a wallet address, and our backend fetches its recent incoming and outgoing asset transfers from Ethereum and combines them into one transaction history.
 
 def validate_transaction_hash(tx_hash: str):
     if (
