@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from web3.exceptions import TransactionNotFound
 from app.services.transaction_service import get_transaction_details, get_transaction_receipt, validate_transaction_hash, get_wallet_transaction
+from app.services.llm_service import explain_transaction
 
 transaction_router = APIRouter(prefix="/transactions",
     tags=["Transactions"])
@@ -27,6 +28,25 @@ def wallet_transactions(wallet_address:str):
         "transfers":transfers
     }
 
+@transaction_router.get("/{tx_hash}/explanation")
+def explain_transaction_route(tx_hash: str):
+    try:
+        validate_transaction_hash(tx_hash)
+
+        transaction_data = get_transaction_details(tx_hash)
+
+        explanation = explain_transaction(transaction_data)
+
+        return {
+            "transaction_hash": tx_hash,
+            "explanation": explanation
+        }
+
+    except TransactionNotFound:
+        raise HTTPException(
+            status_code=404,
+            detail="Transaction not found"
+        )
 
 
 
