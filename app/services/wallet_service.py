@@ -12,6 +12,9 @@ def check_ethereum_connection():
         return web3.eth.chain_id == 1
 
 def get_wallet_balance(address:str):
+    # print("Chain ID:", web3.eth.chain_id)
+    # print("Wallet address:", address)
+    # print("Balance in Wei:", balance_wei)
     balance_wei = web3.eth.get_balance(address)
     balance_eth = web3.from_wei(balance_wei, "ether")
     return f"{balance_eth} ETH"

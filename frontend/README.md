@@ -1,6 +1,6 @@
 # ChainLens Frontend
 
-Simple React + TypeScript UI for the FastAPI Ethereum analyzer.
+React + TypeScript UI for the FastAPI Ethereum analyzer.
 
 ## Prerequisites
 
@@ -17,13 +17,14 @@ npm run dev
 
 Open **http://127.0.0.1:5173**
 
-The Vite dev server proxies `/api/*` to your FastAPI backend, so you do not need CORS changes in `app/`.
+Vite proxies `/api/*` to FastAPI, so no CORS changes are needed in `app/`.
 
-## What it uses from the backend
+## Features wired to backend
 
-| UI action            | API call                          |
-|----------------------|-----------------------------------|
-| Connection badge     | `GET /wallet/connection`          |
-| Get balance          | `POST /wallet/analyze`            |
-| Look up transaction  | `GET /transactions/{tx_hash}`     |
-|                      | `GET /transactions/{tx_hash}/receipt` |
+| UI mode            | API call                               |
+|--------------------|----------------------------------------|
+| Connection badge   | `GET /wallet/connection`               |
+| Wallet balance     | `POST /wallet/analyze`                 |
+| Transfer history   | `GET /transactions/wallet/{address}`   |
+| Tx lookup          | `GET /transactions/{tx_hash}`          |
+|                    | `GET /transactions/{tx_hash}/receipt`  |

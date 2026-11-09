@@ -14,6 +14,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     try {
       const body = await response.json();
       if (typeof body?.detail === "string") detail = body.detail;
+      else if (Array.isArray(body?.detail)) detail = body.detail.map(String).join(", ");
     } catch {
       // keep default message
     }
@@ -53,6 +54,25 @@ export type TransactionReceipt = {
   confirmations: number;
 };
 
+export type AssetTransfer = {
+  uniqueId?: string;
+  hash?: string;
+  from?: string;
+  to?: string | null;
+  value?: number | string | null;
+  asset?: string | null;
+  category?: string;
+  blockNum?: string;
+  metadata?: {
+    blockTimestamp?: string;
+  };
+};
+
+export type WalletTransfersResult = {
+  wallet_address: string;
+  transfers: AssetTransfer[];
+};
+
 export function checkConnection() {
   return request<ConnectionStatus>("/wallet/connection");
 }
@@ -62,6 +82,10 @@ export function analyzeWallet(walletAddress: string) {
     method: "POST",
     body: JSON.stringify({ wallet_address: walletAddress }),
   });
+}
+
+export function getWalletTransfers(walletAddress: string) {
+  return request<WalletTransfersResult>(`/transactions/wallet/${walletAddress}`);
 }
 
 export function getTransaction(txHash: string) {

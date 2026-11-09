@@ -9,7 +9,8 @@ web3 = Web3(Web3.HTTPProvider(rpc_url))
 
 def get_wallet_transaction(wallet_address:str):
     latest_block = web3.eth.block_number
-    start_block = max(latest_block - 10000, 0)
+    # start_block = max(latest_block - 10000, 0)
+    start_block = 0
 
     outgoing = []
     page_key = None
@@ -73,7 +74,7 @@ def get_wallet_transaction(wallet_address:str):
                         for transfer in all_transfers
                     }
     all_transfers = list(unique_transfers.values())
-    
+    all_transfers.sort(key=lambda transfer: int(transfer["blockNum"], 16),reverse=True)
     return all_transfers    
 
 # A user provides a wallet address, and our backend fetches its recent incoming and outgoing asset transfers from Ethereum and combines them into one transaction history.

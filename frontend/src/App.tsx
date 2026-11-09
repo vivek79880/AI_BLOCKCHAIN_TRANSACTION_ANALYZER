@@ -4,17 +4,36 @@ import {
   checkConnection,
   getTransaction,
   getTransactionReceipt,
+  getWalletTransfers,
+  type AssetTransfer,
   type ConnectionStatus,
   type TransactionDetails,
   type TransactionReceipt,
   type WalletAnalyzeResult,
 } from "./api";
 
-type Tab = "wallet" | "transaction";
+type Mode = "balance" | "activity" | "transaction";
 
 function shorten(value: string, left = 10, right = 8) {
   if (value.length <= left + right + 3) return value;
   return `${value.slice(0, left)}…${value.slice(-right)}`;
+}
+
+function formatBlock(blockNum?: string) {
+  if (!blockNum) return "—";
+  try {
+    return Number.parseInt(blockNum, 16).toLocaleString();
+  } catch {
+    return blockNum;
+  }
+}
+
+function formatAmount(transfer: AssetTransfer) {
+  const asset = transfer.asset || "ETH";
+  if (transfer.value === null || transfer.value === undefined || transfer.value === "") {
+    return `— ${asset}`;
+  }
+  return `${transfer.value} ${asset}`;
 }
 
 function CopyableAddress({ address, label }: { address: string; label: string }) {
@@ -70,7 +89,7 @@ function EthLogo() {
 }
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("wallet");
+  const [mode, setMode] = useState<Mode>("balance");
   const [connection, setConnection] = useState<ConnectionStatus | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
@@ -78,6 +97,12 @@ export default function App() {
   const [walletLoading, setWalletLoading] = useState(false);
   const [walletError, setWalletError] = useState<string | null>(null);
   const [walletResult, setWalletResult] = useState<WalletAnalyzeResult | null>(null);
+
+  const [activityAddress, setActivityAddress] = useState("");
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityError, setActivityError] = useState<string | null>(null);
+  const [transfers, setTransfers] = useState<AssetTransfer[]>([]);
+  const [activityWallet, setActivityWallet] = useState<string | null>(null);
 
   const [txHash, setTxHash] = useState("");
   const [txLoading, setTxLoading] = useState(false);
@@ -129,6 +154,30 @@ export default function App() {
     }
   }
 
+  async function onLoadActivity(event: FormEvent) {
+    event.preventDefault();
+    setActivityError(null);
+    setTransfers([]);
+    setActivityWallet(null);
+
+    const address = activityAddress.trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+      setActivityError("Enter a valid Ethereum address (0x + 40 hex characters).");
+      return;
+    }
+
+    setActivityLoading(true);
+    try {
+      const result = await getWalletTransfers(address);
+      setTransfers(result.transfers ?? []);
+      setActivityWallet(result.wallet_address);
+    } catch (err) {
+      setActivityError(err instanceof Error ? err.message : "Could not load transfers.");
+    } finally {
+      setActivityLoading(false);
+    }
+  }
+
   async function onLookupTransaction(event: FormEvent) {
     event.preventDefault();
     setTxError(null);
@@ -156,6 +205,15 @@ export default function App() {
     }
   }
 
+  function openTransaction(hash?: string) {
+    if (!hash) return;
+    setTxHash(hash);
+    setMode("transaction");
+    setTxError(null);
+    setTxDetails(null);
+    setTxReceipt(null);
+  }
+
   const online = Boolean(connection?.connected);
 
   return (
@@ -167,7 +225,7 @@ export default function App() {
           </div>
           <div>
             <h1>ChainLens</h1>
-            <p>Ethereum wallet & transaction analyzer</p>
+            <p>Neon desk for Ethereum wallets & txs</p>
           </div>
         </div>
 
@@ -180,17 +238,18 @@ export default function App() {
             ? "Backend offline"
             : connection
               ? connection.connected
-                ? `${connection.network} connected`
-                : "ETH RPC not connected"
+                ? `${connection.network} live`
+                : "ETH RPC offline"
               : "Checking network…"}
         </div>
       </header>
 
       <section className="hero">
-        <h2>Inspect Ethereum activity in plain English.</h2>
+        <div className="hero-kicker">Ethereum first · multi-chain ready</div>
+        <h2>See the chain. Follow the money.</h2>
         <p>
-          Look up any wallet balance or transaction details from Ethereum Mainnet.
-          More chains can be added later — this UI is ready for them.
+          Check balances, scan wallet transfer history, and open any transaction hash —
+          built for ETH Mainnet, designed to grow with more networks.
         </p>
         <div className="network-row">
           <span className="network-pill">Ethereum</span>
@@ -199,27 +258,41 @@ export default function App() {
         </div>
       </section>
 
-      <nav className="tabs" aria-label="Analyzer tools">
+      <div className="mode-grid" role="tablist" aria-label="Analyzer modes">
         <button
           type="button"
-          className={`tab ${tab === "wallet" ? "active" : ""}`}
-          onClick={() => setTab("wallet")}
+          className={`mode-card ${mode === "balance" ? "active" : ""}`}
+          onClick={() => setMode("balance")}
         >
-          Wallet balance
+          <strong>Wallet balance</strong>
+          <span>Live ETH balance for any address</span>
         </button>
         <button
           type="button"
-          className={`tab ${tab === "transaction" ? "active" : ""}`}
-          onClick={() => setTab("transaction")}
+          className={`mode-card ${mode === "activity" ? "active" : ""}`}
+          onClick={() => setMode("activity")}
         >
-          Transaction lookup
+          <strong>Transfer history</strong>
+          <span>Incoming & outgoing asset transfers</span>
         </button>
-      </nav>
+        <button
+          type="button"
+          className={`mode-card ${mode === "transaction" ? "active" : ""}`}
+          onClick={() => setMode("transaction")}
+        >
+          <strong>Tx lookup</strong>
+          <span>Hash → value, gas, status, parties</span>
+        </button>
+      </div>
 
-      {tab === "wallet" ? (
+      {mode === "balance" && (
         <section className="panel">
-          <h3>Analyze a wallet</h3>
-          <p className="hint">Paste an Ethereum address to fetch its current ETH balance.</p>
+          <div className="panel-head">
+            <div>
+              <h3>Analyze a wallet</h3>
+              <p className="hint">Paste an Ethereum address to fetch its current ETH balance.</p>
+            </div>
+          </div>
 
           <form className="form-row" onSubmit={onAnalyzeWallet}>
             <input
@@ -238,8 +311,8 @@ export default function App() {
           {walletError && <div className="message error">{walletError}</div>}
 
           {walletResult && (
-            <div className="result-grid">
-              <div className="result-card">
+            <div className="result-grid split">
+              <div className="result-card accent">
                 <span className="label">Balance</span>
                 <div className="value large">{walletResult.balance ?? "—"}</div>
               </div>
@@ -247,19 +320,164 @@ export default function App() {
                 <span className="label">Network</span>
                 <div className="value">{walletResult.network}</div>
               </div>
-              <div className="result-card result-span">
-                <span className="label">Wallet address</span>
-                <div className="value">{walletResult.wallet_address}</div>
+              <CopyableAddress label="Wallet address" address={walletResult.wallet_address} />
+              <div className="result-card">
+                <span className="label">Next step</span>
+                <div className="value" style={{ fontFamily: "var(--font-body)" }}>
+                  Open Transfer history to scan this wallet’s moves.
+                </div>
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  style={{ marginTop: "0.75rem" }}
+                  onClick={() => {
+                    setActivityAddress(walletResult.wallet_address);
+                    setMode("activity");
+                  }}
+                >
+                  View activity
+                </button>
               </div>
             </div>
           )}
         </section>
-      ) : (
+      )}
+
+      {mode === "activity" && (
         <section className="panel">
-          <h3>Look up a transaction</h3>
-          <p className="hint">
-            Paste a transaction hash to see sender, receiver, value, gas fee, and confirmation status.
-          </p>
+          <div className="panel-head">
+            <div>
+              <h3>Wallet transfer history</h3>
+              <p className="hint">
+                Loads incoming and outgoing transfers (external, internal, ERC-20) from the backend.
+              </p>
+            </div>
+          </div>
+
+          <form className="form-row" onSubmit={onLoadActivity}>
+            <input
+              type="text"
+              value={activityAddress}
+              onChange={(e) => setActivityAddress(e.target.value)}
+              placeholder="0x… wallet address"
+              spellCheck={false}
+              autoComplete="off"
+            />
+            <button className="btn" type="submit" disabled={activityLoading}>
+              {activityLoading ? "Scanning…" : "Load transfers"}
+            </button>
+          </form>
+
+          {activityLoading && (
+            <div className="message info">
+              <span className="loading-pulse">Fetching transfers from Ethereum…</span>
+            </div>
+          )}
+
+          {activityError && <div className="message error">{activityError}</div>}
+
+          {!activityLoading && activityWallet && transfers.length === 0 && (
+            <div className="empty-state">No transfers returned for this wallet.</div>
+          )}
+
+          {transfers.length > 0 && activityWallet && (
+            <>
+              <div className="section-title">
+                {transfers.length} transfer{transfers.length === 1 ? "" : "s"} · {shorten(activityWallet)}
+              </div>
+              <div className="transfer-list">
+                {transfers.map((transfer, index) => {
+                  const from = (transfer.from || "").toLowerCase();
+                  const to = (transfer.to || "").toLowerCase();
+                  const wallet = activityWallet.toLowerCase();
+                  const direction =
+                    from === wallet && to === wallet
+                      ? "self"
+                      : from === wallet
+                        ? "out"
+                        : to === wallet
+                          ? "in"
+                          : "other";
+
+                  return (
+                    <article
+                      className="transfer-item"
+                      key={transfer.uniqueId || transfer.hash || `${index}`}
+                    >
+                      <div className="transfer-top">
+                        <div className="transfer-amount">{formatAmount(transfer)}</div>
+                        <span
+                          className={`badge ${
+                            direction === "in"
+                              ? "in"
+                              : direction === "out"
+                                ? "out"
+                                : "neutral"
+                          }`}
+                        >
+                          {direction === "in"
+                            ? "Incoming"
+                            : direction === "out"
+                              ? "Outgoing"
+                              : direction === "self"
+                                ? "Self"
+                                : transfer.category || "Transfer"}
+                        </span>
+                      </div>
+
+                      <div className="transfer-meta">
+                        <div>
+                          From <strong>{transfer.from ? shorten(transfer.from) : "—"}</strong>
+                        </div>
+                        <div>
+                          To <strong>{transfer.to ? shorten(transfer.to) : "—"}</strong>
+                        </div>
+                        <div>
+                          Block <strong>{formatBlock(transfer.blockNum)}</strong>
+                          {transfer.category ? ` · ${transfer.category}` : ""}
+                          {transfer.metadata?.blockTimestamp
+                            ? ` · ${transfer.metadata.blockTimestamp}`
+                            : ""}
+                        </div>
+                      </div>
+
+                      {transfer.hash && (
+                        <div className="transfer-actions">
+                          <button
+                            type="button"
+                            className="ghost-btn"
+                            onClick={() => openTransaction(transfer.hash)}
+                          >
+                            Open tx details
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost-btn"
+                            onClick={() => navigator.clipboard.writeText(transfer.hash || "")}
+                          >
+                            Copy hash
+                          </button>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </section>
+      )}
+
+      {mode === "transaction" && (
+        <section className="panel">
+          <div className="panel-head">
+            <div>
+              <h3>Look up a transaction</h3>
+              <p className="hint">
+                Paste a transaction hash for sender, receiver, value, gas fee, and confirmation status.
+              </p>
+            </div>
+          </div>
 
           <form className="form-row" onSubmit={onLookupTransaction}>
             <input
@@ -291,7 +509,7 @@ export default function App() {
               )}
 
               {txDetails && (
-                <div className="result-card">
+                <div className="result-card accent">
                   <span className="label">Value</span>
                   <div className="value large">{txDetails.value} ETH</div>
                 </div>
@@ -338,10 +556,7 @@ export default function App() {
               )}
 
               {txDetails && (
-                <div className="result-card result-span">
-                  <span className="label">Transaction hash</span>
-                  <div className="value">{txDetails.transaction_hash}</div>
-                </div>
+                <CopyableAddress label="Transaction hash" address={txDetails.transaction_hash} />
               )}
             </div>
           )}
