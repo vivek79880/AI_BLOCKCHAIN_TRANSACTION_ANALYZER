@@ -25,6 +25,8 @@ Vite proxies `/api/*` to FastAPI, so no CORS changes are needed in `app/`.
 |--------------------|----------------------------------------|
 | Connection badge   | `GET /wallet/connection`               |
 | Wallet balance     | `POST /wallet/analyze`                 |
+|                    | `GET /wallet/usdc/{address}`           |
+|                    | `GET /wallet/pol_ex_matic/{address}`   |
 | Transfer history   | `GET /transactions/wallet/{address}`   |
 | Tx lookup          | `GET /transactions/{tx_hash}`          |
 |                    | `GET /transactions/{tx_hash}/receipt`  |

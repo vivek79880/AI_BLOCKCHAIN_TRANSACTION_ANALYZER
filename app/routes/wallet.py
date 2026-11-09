@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 from app.schemas.wallet import WalletRequest, WalletResponse
 
-from app.services.wallet_service import get_wallet_balance, check_ethereum_connection
+from app.services.wallet_service import get_wallet_balance, check_ethereum_connection,get_usdc_balance,get_pol_ex_matic_balance
+
 
 wallet_router = APIRouter(prefix = "/wallet", tags = ["wallet"])
 
@@ -20,6 +21,24 @@ def analyze_wallet(request: WalletRequest):
         "wallet_address": request.wallet_address,
         "balance": balance,
         "network": "Ethereum"
+    }
+
+@wallet_router.get("/usdc/{address}")
+def usdc_balance(address:str):
+    balance = get_usdc_balance(address)
+    return {
+        "wallet_address": address,
+        "token": "USDC",
+        "balance": balance
+    }
+
+@wallet_router.get("/pol_ex_matic/{address}")
+def pol_ex_matic_balance(address:str):
+    balance = get_pol_ex_matic_balance(address)
+    return {
+        "wallet_address": address,
+        "token": "POL EX-MATIC",
+        "balance": balance
     }
 
 

@@ -35,6 +35,12 @@ export type WalletAnalyzeResult = {
   network: string;
 };
 
+export type TokenBalanceResult = {
+  wallet_address: string;
+  token: string;
+  balance: number | string;
+};
+
 export type TransactionDetails = {
   transaction_hash: string;
   from: string;
@@ -82,6 +88,14 @@ export function analyzeWallet(walletAddress: string) {
     method: "POST",
     body: JSON.stringify({ wallet_address: walletAddress }),
   });
+}
+
+export function getUsdcBalance(walletAddress: string) {
+  return request<TokenBalanceResult>(`/wallet/usdc/${walletAddress}`);
+}
+
+export function getPolExMaticBalance(walletAddress: string) {
+  return request<TokenBalanceResult>(`/wallet/pol_ex_matic/${walletAddress}`);
 }
 
 export function getWalletTransfers(walletAddress: string) {

@@ -2,11 +2,14 @@ import { FormEvent, useEffect, useState } from "react";
 import {
   analyzeWallet,
   checkConnection,
+  getPolExMaticBalance,
   getTransaction,
   getTransactionReceipt,
+  getUsdcBalance,
   getWalletTransfers,
   type AssetTransfer,
   type ConnectionStatus,
+  type TokenBalanceResult,
   type TransactionDetails,
   type TransactionReceipt,
   type WalletAnalyzeResult,
@@ -34,6 +37,15 @@ function formatAmount(transfer: AssetTransfer) {
     return `— ${asset}`;
   }
   return `${transfer.value} ${asset}`;
+}
+
+function formatTokenBalance(balance: number | string | null | undefined) {
+  if (balance === null || balance === undefined || balance === "") return "—";
+  const numeric = typeof balance === "number" ? balance : Number(balance);
+  if (Number.isFinite(numeric)) {
+    return numeric.toLocaleString(undefined, { maximumFractionDigits: 6 });
+  }
+  return String(balance);
 }
 
 function CopyableAddress({ address, label }: { address: string; label: string }) {
@@ -97,6 +109,9 @@ export default function App() {
   const [walletLoading, setWalletLoading] = useState(false);
   const [walletError, setWalletError] = useState<string | null>(null);
   const [walletResult, setWalletResult] = useState<WalletAnalyzeResult | null>(null);
+  const [usdcBalance, setUsdcBalance] = useState<TokenBalanceResult | null>(null);
+  const [polBalance, setPolBalance] = useState<TokenBalanceResult | null>(null);
+  const [tokenWarnings, setTokenWarnings] = useState<string[]>([]);
 
   const [activityAddress, setActivityAddress] = useState("");
   const [activityLoading, setActivityLoading] = useState(false);
@@ -136,6 +151,9 @@ export default function App() {
     event.preventDefault();
     setWalletError(null);
     setWalletResult(null);
+    setUsdcBalance(null);
+    setPolBalance(null);
+    setTokenWarnings([]);
 
     const address = walletAddress.trim();
     if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
@@ -145,8 +163,37 @@ export default function App() {
 
     setWalletLoading(true);
     try {
-      const result = await analyzeWallet(address);
-      setWalletResult(result);
+      const [ethResult, usdcResult, polResult] = await Promise.allSettled([
+        analyzeWallet(address),
+        getUsdcBalance(address),
+        getPolExMaticBalance(address),
+      ]);
+
+      const warnings: string[] = [];
+
+      if (ethResult.status === "fulfilled") {
+        setWalletResult(ethResult.value);
+      } else {
+        setWalletError(
+          ethResult.reason instanceof Error
+            ? ethResult.reason.message
+            : "Could not fetch ETH balance.",
+        );
+      }
+
+      if (usdcResult.status === "fulfilled") {
+        setUsdcBalance(usdcResult.value);
+      } else {
+        warnings.push("USDC balance unavailable");
+      }
+
+      if (polResult.status === "fulfilled") {
+        setPolBalance(polResult.value);
+      } else {
+        warnings.push("POL EX-MATIC balance unavailable");
+      }
+
+      setTokenWarnings(warnings);
     } catch (err) {
       setWalletError(err instanceof Error ? err.message : "Could not analyze wallet.");
     } finally {
@@ -248,13 +295,14 @@ export default function App() {
         <div className="hero-kicker">Ethereum first · multi-chain ready</div>
         <h2>See the chain. Follow the money.</h2>
         <p>
-          Check balances, scan wallet transfer history, and open any transaction hash —
-          built for ETH Mainnet, designed to grow with more networks.
+          Check ETH, USDC, and POL EX-MATIC balances, scan transfer history, and open any
+          transaction hash — Ethereum Mainnet first, more networks later.
         </p>
         <div className="network-row">
           <span className="network-pill">Ethereum</span>
-          <span className="network-pill soon">Bitcoin soon</span>
-          <span className="network-pill soon">Solana soon</span>
+          <span className="network-pill">USDC</span>
+          <span className="network-pill">POL EX-MATIC</span>
+          <span className="network-pill soon">More tokens soon</span>
         </div>
       </section>
 
@@ -265,7 +313,7 @@ export default function App() {
           onClick={() => setMode("balance")}
         >
           <strong>Wallet balance</strong>
-          <span>Live ETH balance for any address</span>
+          <span>ETH + USDC + POL EX-MATIC</span>
         </button>
         <button
           type="button"
@@ -290,7 +338,9 @@ export default function App() {
           <div className="panel-head">
             <div>
               <h3>Analyze a wallet</h3>
-              <p className="hint">Paste an Ethereum address to fetch its current ETH balance.</p>
+              <p className="hint">
+                Paste an Ethereum address to fetch ETH, USDC, and POL EX-MATIC balances.
+              </p>
             </div>
           </div>
 
@@ -304,40 +354,76 @@ export default function App() {
               autoComplete="off"
             />
             <button className="btn" type="submit" disabled={walletLoading}>
-              {walletLoading ? "Checking…" : "Get balance"}
+              {walletLoading ? "Checking…" : "Get balances"}
             </button>
           </form>
 
           {walletError && <div className="message error">{walletError}</div>}
+          {tokenWarnings.length > 0 && (
+            <div className="message info">{tokenWarnings.join(" · ")}</div>
+          )}
 
-          {walletResult && (
+          {(walletResult || usdcBalance || polBalance) && (
             <div className="result-grid split">
-              <div className="result-card accent">
-                <span className="label">Balance</span>
-                <div className="value large">{walletResult.balance ?? "—"}</div>
-              </div>
-              <div className="result-card">
-                <span className="label">Network</span>
-                <div className="value">{walletResult.network}</div>
-              </div>
-              <CopyableAddress label="Wallet address" address={walletResult.wallet_address} />
-              <div className="result-card">
-                <span className="label">Next step</span>
-                <div className="value" style={{ fontFamily: "var(--font-body)" }}>
-                  Open Transfer history to scan this wallet’s moves.
+              {walletResult && (
+                <div className="result-card accent">
+                  <span className="label">ETH</span>
+                  <div className="value large">{walletResult.balance ?? "—"}</div>
                 </div>
-                <button
-                  type="button"
-                  className="ghost-btn"
-                  style={{ marginTop: "0.75rem" }}
-                  onClick={() => {
-                    setActivityAddress(walletResult.wallet_address);
-                    setMode("activity");
-                  }}
-                >
-                  View activity
-                </button>
-              </div>
+              )}
+
+              {usdcBalance && (
+                <div className="result-card accent">
+                  <span className="label">{usdcBalance.token}</span>
+                  <div className="value large">{formatTokenBalance(usdcBalance.balance)}</div>
+                </div>
+              )}
+
+              {polBalance && (
+                <div className="result-card accent">
+                  <span className="label">{polBalance.token}</span>
+                  <div className="value large">{formatTokenBalance(polBalance.balance)}</div>
+                </div>
+              )}
+
+              {walletResult && (
+                <div className="result-card">
+                  <span className="label">Network</span>
+                  <div className="value">{walletResult.network}</div>
+                </div>
+              )}
+
+              {(walletResult || usdcBalance || polBalance) && (
+                <CopyableAddress
+                  label="Wallet address"
+                  address={
+                    walletResult?.wallet_address ||
+                    usdcBalance?.wallet_address ||
+                    polBalance?.wallet_address ||
+                    ""
+                  }
+                />
+              )}
+
+              {walletResult && (
+                <div className="result-card">
+                  <span className="label">Next step</span>
+                  <div className="value" style={{ fontFamily: "var(--font-body)" }}>
+                    Open Transfer history to scan this wallet’s moves.
+                  </div>
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    style={{ marginTop: "0.75rem" }}
+                    onClick={() => {
+                      setActivityAddress(walletResult.wallet_address);
+                      setMode("activity");
+                    }}
+                  >
+                    View activity
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </section>
