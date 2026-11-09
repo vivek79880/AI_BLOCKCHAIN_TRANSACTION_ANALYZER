@@ -7,6 +7,20 @@ load_dotenv()
 rpc_url = os.getenv("ETHEREUM_ENDPOINT")
 web3 = Web3(Web3.HTTPProvider(rpc_url))
 
+def get_wallet_transaction(wallet_address:str):
+    latest_block = web3.eth.block_number
+    start_block = max(latest_block - 10000, 0)
+
+    params = {
+    "fromAddress": wallet_address,
+    "category": ["external", "internal", "erc20"],
+    "fromBlock": hex(start_block),
+    "toBlock": "latest"
+    }
+    response = web3.provider.make_request("alchemy_getAssetTransfers",[params])
+
+
+
 def validate_transaction_hash(tx_hash: str):
     if (
         not isinstance(tx_hash, str)
@@ -52,7 +66,7 @@ def get_transaction_receipt(tx_hash:str):
 
     }
 
-    
+
 
 
 
