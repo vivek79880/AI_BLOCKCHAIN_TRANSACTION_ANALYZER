@@ -109,3 +109,21 @@ export function getTransaction(txHash: string) {
 export function getTransactionReceipt(txHash: string) {
   return request<TransactionReceipt>(`/transactions/${txHash}/receipt`);
 }
+
+export type TransactionExplanation = {
+  transaction_hash: string;
+  explanation: string;
+};
+
+export type WalletActivitySummary = {
+  wallet_address: string;
+  summary: string;
+};
+
+export function getTransactionExplanation(txHash: string) {
+  return request<TransactionExplanation>(`/transactions/${txHash}/explanation`);
+}
+
+export function getWalletActivitySummary(walletAddress: string) {
+  return request<WalletActivitySummary>(`/transactions/wallet/${walletAddress}/summary`);
+}

@@ -1,7 +1,8 @@
 import os, json 
-
 from dotenv import load_dotenv
 from google import genai
+from web3 import Web3
+from app.services.transaction_service import get_transaction_receipt
 
 load_dotenv()
 LLM_KEY = os.getenv("GEMINI_API_KEY")
@@ -67,7 +68,51 @@ def prepare_transfer_data(transfer: dict):
 
 def explain_transfer(transfer: dict):
     filtered_data = prepare_transfer_data(transfer)
+    receipt = get_transaction_receipt(
+        transfer.get("hash")
+    )
+
+    gas_fee_wei = (
+        receipt["gasUsed"] * receipt["effectiveGasPrice"]
+    )
+
+    gas_fee_eth = Web3.from_wei(gas_fee_wei, "ether")
+
+    filtered_data["gas_fee"] = f"{gas_fee_eth} ETH"
 
     return explain_transaction(filtered_data)
+
+def summarize_wallet_activity(transfers: list):
+    filtered_transfers = [
+        prepare_transfer_data(transfer)
+        for transfer in transfers[:5]
+    ]
+
+    prompt = f"""
+    Summarize this Ethereum wallet's recent activity
+    in simple English.
+
+    Transaction data:
+    {json.dumps(filtered_transfers)}
+
+    Explain:
+    1. What activity is visible?
+    2. Which assets were transferred?
+    3. What patterns can be observed?
+
+    Do not invent information or label activity suspicious
+    without sufficient evidence.
+    """
+
+    response = client.models.generate_content(
+        model="gemini-3.5-flash-lite",
+        contents=prompt,
+        config={
+            "max_output_tokens": 250,
+            "temperature": 0
+        }
+    )
+
+    return response.text
 
 

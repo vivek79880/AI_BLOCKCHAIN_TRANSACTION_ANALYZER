@@ -263,6 +263,16 @@ input {
   animation: rise 0.7s ease both;
 }
 
+.mode-grid.modes-4 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (min-width: 900px) {
+  .mode-grid.modes-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
 .mode-card {
   text-align: left;
   border: 1px solid var(--border);
@@ -656,6 +666,218 @@ input[type="text"]:focus {
   border-radius: 50%;
   background: linear-gradient(135deg, var(--ice), var(--ice-deep));
   animation: blink 1s ease-in-out infinite;
+}
+
+.ai-stack {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.ai-box {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background:
+    linear-gradient(160deg, rgba(14, 165, 233, 0.1), rgba(125, 211, 252, 0.04)),
+    rgba(5, 5, 7, 0.55);
+  padding: 1.15rem 1.2rem;
+}
+
+.ai-box-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.ai-box-title {
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  letter-spacing: 0.03em;
+  margin-bottom: 0.3rem;
+}
+
+.ai-box-hint {
+  margin: 0 0 0.9rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.ai-box-hint code {
+  font-size: 0.82rem;
+  color: var(--ice-bright);
+}
+
+.ai-prose {
+  white-space: pre-wrap;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  font-size: 0.98rem;
+}
+
+.prepared-grid {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.prepared-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(125, 211, 252, 0.12);
+  border-radius: 10px;
+  background: rgba(5, 5, 7, 0.45);
+}
+
+.prepared-row span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  align-self: start;
+  padding-top: 0.15rem;
+}
+
+.prepared-row strong {
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.ask-box .chat-log {
+  display: grid;
+  gap: 0.7rem;
+  max-height: 280px;
+  overflow: auto;
+  margin-bottom: 0.95rem;
+  padding-right: 0.25rem;
+}
+
+.chat-empty {
+  padding: 1rem;
+  border: 1px dashed rgba(125, 211, 252, 0.25);
+  border-radius: 12px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.6;
+}
+
+.chat-bubble {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0.8rem 0.95rem;
+  background: rgba(5, 5, 7, 0.5);
+}
+
+.chat-bubble.user {
+  border-color: rgba(125, 211, 252, 0.28);
+  background: rgba(14, 165, 233, 0.1);
+}
+
+.chat-bubble.assistant {
+  border-color: rgba(125, 211, 252, 0.16);
+}
+
+.chat-role {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--ice);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.chat-bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.65;
+  letter-spacing: 0.02em;
+}
+
+.ask-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ask-form textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 88px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(5, 5, 7, 0.85);
+  color: var(--text);
+  padding: 0.95rem 1.05rem;
+  outline: none;
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+}
+
+.ask-form textarea:focus {
+  border-color: rgba(125, 211, 252, 0.65);
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.14);
+}
+
+.ask-form textarea:disabled {
+  opacity: 0.55;
+}
+
+.transfer-pick-list {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.transfer-pick {
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(5, 5, 7, 0.45);
+  color: var(--text);
+  padding: 0.75rem 0.9rem;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.transfer-pick span {
+  display: block;
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+  margin-bottom: 0.2rem;
+}
+
+.transfer-pick small {
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.transfer-pick:hover {
+  border-color: rgba(125, 211, 252, 0.4);
+}
+
+.transfer-pick.active {
+  border-color: var(--border-strong);
+  background: rgba(14, 165, 233, 0.14);
+}
+
+@media (max-width: 700px) {
+  .prepared-row {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+
+  .ai-box-head {
+    flex-direction: column;
+  }
 }
 
 @media (min-width: 860px) {

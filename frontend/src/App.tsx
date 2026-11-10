@@ -1,11 +1,13 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   analyzeWallet,
   checkConnection,
   getPolExMaticBalance,
   getTransaction,
+  getTransactionExplanation,
   getTransactionReceipt,
   getUsdcBalance,
+  getWalletActivitySummary,
   getWalletTransfers,
   type AssetTransfer,
   type ConnectionStatus,
@@ -14,8 +16,18 @@ import {
   type TransactionReceipt,
   type WalletAnalyzeResult,
 } from "./api";
+import {
+  answerFromPreparedContext,
+  prepareTransferData,
+  type PreparedTransferData,
+} from "./prepare";
 
-type Mode = "balance" | "activity" | "transaction";
+type Mode = "balance" | "activity" | "transaction" | "insights";
+
+type ChatMessage = {
+  role: "user" | "assistant";
+  text: string;
+};
 
 function shorten(value: string, left = 10, right = 8) {
   if (value.length <= left + right + 3) return value;
@@ -100,6 +112,87 @@ function EthLogo() {
   );
 }
 
+function PreparedDataBox({ data }: { data: PreparedTransferData }) {
+  return (
+    <div className="ai-box">
+      <div className="ai-box-title">Prepared transfer data</div>
+      <p className="ai-box-hint">
+        Same fields as backend <code>prepare_transfer_data</code> — used for Q&amp;A context.
+      </p>
+      <div className="prepared-grid">
+        {(
+          [
+            ["transaction_hash", data.transaction_hash],
+            ["sender", data.sender],
+            ["receiver", data.receiver],
+            ["asset", data.asset],
+            ["amount", data.amount],
+            ["category", data.category],
+            ["timestamp", data.timestamp],
+          ] as const
+        ).map(([key, value]) => (
+          <div className="prepared-row" key={key}>
+            <span>{key}</span>
+            <strong>{value == null || value === "" ? "Not available" : String(value)}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AskBox({
+  messages,
+  question,
+  setQuestion,
+  onAsk,
+  disabled,
+  placeholder,
+}: {
+  messages: ChatMessage[];
+  question: string;
+  setQuestion: (value: string) => void;
+  onAsk: (event: FormEvent) => void;
+  disabled?: boolean;
+  placeholder?: string;
+}) {
+  return (
+    <div className="ai-box ask-box">
+      <div className="ai-box-title">Ask about this transfer</div>
+      <p className="ai-box-hint">
+        Ask about sender, receiver, amount, asset, time, category, hash — answers use prepared
+        transfer data{disabled ? "" : " and any loaded AI text"}.
+      </p>
+
+      <div className="chat-log">
+        {messages.length === 0 ? (
+          <div className="chat-empty">No questions yet. Try “Who sent this?” or “How much?”</div>
+        ) : (
+          messages.map((message, index) => (
+            <div className={`chat-bubble ${message.role}`} key={`${message.role}-${index}`}>
+              <span className="chat-role">{message.role === "user" ? "You" : "ChainLens"}</span>
+              <p>{message.text}</p>
+            </div>
+          ))
+        )}
+      </div>
+
+      <form className="ask-form" onSubmit={onAsk}>
+        <textarea
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder={placeholder || "Ask a question about the selected transfer…"}
+          rows={3}
+          disabled={disabled}
+        />
+        <button className="btn" type="submit" disabled={disabled || !question.trim()}>
+          Ask
+        </button>
+      </form>
+    </div>
+  );
+}
+
 export default function App() {
   const [mode, setMode] = useState<Mode>("balance");
   const [connection, setConnection] = useState<ConnectionStatus | null>(null);
@@ -124,6 +217,20 @@ export default function App() {
   const [txError, setTxError] = useState<string | null>(null);
   const [txDetails, setTxDetails] = useState<TransactionDetails | null>(null);
   const [txReceipt, setTxReceipt] = useState<TransactionReceipt | null>(null);
+  const [txExplanation, setTxExplanation] = useState<string | null>(null);
+  const [txExplanationLoading, setTxExplanationLoading] = useState(false);
+  const [txExplanationError, setTxExplanationError] = useState<string | null>(null);
+  const [txQuestion, setTxQuestion] = useState("");
+  const [txMessages, setTxMessages] = useState<ChatMessage[]>([]);
+
+  const [insightsAddress, setInsightsAddress] = useState("");
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [walletSummary, setWalletSummary] = useState<string | null>(null);
+  const [insightsTransfers, setInsightsTransfers] = useState<AssetTransfer[]>([]);
+  const [selectedTransferId, setSelectedTransferId] = useState<string | null>(null);
+  const [insightsQuestion, setInsightsQuestion] = useState("");
+  const [insightsMessages, setInsightsMessages] = useState<ChatMessage[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,6 +253,33 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  const selectedTransfer = useMemo(() => {
+    if (!selectedTransferId) return null;
+    return (
+      insightsTransfers.find(
+        (transfer, index) => (transfer.uniqueId || transfer.hash || `${index}`) === selectedTransferId,
+      ) ?? null
+    );
+  }, [insightsTransfers, selectedTransferId]);
+
+  const preparedSelected = useMemo(
+    () => (selectedTransfer ? prepareTransferData(selectedTransfer) : null),
+    [selectedTransfer],
+  );
+
+  const preparedTxContext = useMemo<PreparedTransferData | null>(() => {
+    if (!txDetails) return null;
+    return {
+      transaction_hash: txDetails.transaction_hash,
+      sender: txDetails.from,
+      receiver: txDetails.to,
+      asset: "ETH",
+      amount: txDetails.value,
+      category: "external",
+      timestamp: txReceipt?.block_timestamps ?? null,
+    };
+  }, [txDetails, txReceipt]);
 
   async function onAnalyzeWallet(event: FormEvent) {
     event.preventDefault();
@@ -230,6 +364,9 @@ export default function App() {
     setTxError(null);
     setTxDetails(null);
     setTxReceipt(null);
+    setTxExplanation(null);
+    setTxExplanationError(null);
+    setTxMessages([]);
 
     const hash = txHash.trim();
     if (!/^0x[a-fA-F0-9]{64}$/.test(hash)) {
@@ -252,6 +389,96 @@ export default function App() {
     }
   }
 
+  async function onLoadTxExplanation() {
+    const hash = (txDetails?.transaction_hash || txHash).trim();
+    if (!/^0x[a-fA-F0-9]{64}$/.test(hash)) {
+      setTxExplanationError("Look up a valid transaction first.");
+      return;
+    }
+
+    setTxExplanationLoading(true);
+    setTxExplanationError(null);
+    try {
+      const result = await getTransactionExplanation(hash);
+      setTxExplanation(result.explanation);
+    } catch (err) {
+      setTxExplanationError(
+        err instanceof Error ? err.message : "Could not load AI explanation.",
+      );
+    } finally {
+      setTxExplanationLoading(false);
+    }
+  }
+
+  function onAskTxQuestion(event: FormEvent) {
+    event.preventDefault();
+    const q = txQuestion.trim();
+    if (!q) return;
+
+    const answer = answerFromPreparedContext(q, preparedTxContext, null, txExplanation);
+    setTxMessages((prev) => [...prev, { role: "user", text: q }, { role: "assistant", text: answer }]);
+    setTxQuestion("");
+  }
+
+  async function onLoadInsights(event: FormEvent) {
+    event.preventDefault();
+    setInsightsError(null);
+    setWalletSummary(null);
+    setInsightsTransfers([]);
+    setSelectedTransferId(null);
+    setInsightsMessages([]);
+
+    const address = insightsAddress.trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+      setInsightsError("Enter a valid Ethereum address (0x + 40 hex characters).");
+      return;
+    }
+
+    setInsightsLoading(true);
+    try {
+      const [summaryResult, transfersResult] = await Promise.allSettled([
+        getWalletActivitySummary(address),
+        getWalletTransfers(address),
+      ]);
+
+      if (summaryResult.status === "fulfilled") {
+        setWalletSummary(summaryResult.value.summary);
+      } else {
+        setInsightsError(
+          summaryResult.reason instanceof Error
+            ? summaryResult.reason.message
+            : "Could not load wallet summary.",
+        );
+      }
+
+      if (transfersResult.status === "fulfilled") {
+        const list = transfersResult.value.transfers ?? [];
+        setInsightsTransfers(list);
+        if (list[0]) {
+          setSelectedTransferId(list[0].uniqueId || list[0].hash || "0");
+        }
+      }
+    } catch (err) {
+      setInsightsError(err instanceof Error ? err.message : "Could not load AI insights.");
+    } finally {
+      setInsightsLoading(false);
+    }
+  }
+
+  function onAskInsightsQuestion(event: FormEvent) {
+    event.preventDefault();
+    const q = insightsQuestion.trim();
+    if (!q) return;
+
+    const answer = answerFromPreparedContext(q, preparedSelected, walletSummary, null);
+    setInsightsMessages((prev) => [
+      ...prev,
+      { role: "user", text: q },
+      { role: "assistant", text: answer },
+    ]);
+    setInsightsQuestion("");
+  }
+
   function openTransaction(hash?: string) {
     if (!hash) return;
     setTxHash(hash);
@@ -259,6 +486,9 @@ export default function App() {
     setTxError(null);
     setTxDetails(null);
     setTxReceipt(null);
+    setTxExplanation(null);
+    setTxExplanationError(null);
+    setTxMessages([]);
   }
 
   const online = Boolean(connection?.connected);
@@ -292,21 +522,21 @@ export default function App() {
       </header>
 
       <section className="hero">
-        <div className="hero-kicker">Ethereum first · multi-chain ready</div>
+        <div className="hero-kicker">Ethereum first · AI summaries ready</div>
         <h2>See the chain. Follow the money.</h2>
         <p>
-          Check ETH, USDC, and POL EX-MATIC balances, scan transfer history, and open any
-          transaction hash — Ethereum Mainnet first, more networks later.
+          Check balances, scan transfers, look up hashes, and read AI summaries built from prepared
+          transfer data.
         </p>
         <div className="network-row">
           <span className="network-pill">Ethereum</span>
           <span className="network-pill">USDC</span>
           <span className="network-pill">POL EX-MATIC</span>
-          <span className="network-pill soon">More tokens soon</span>
+          <span className="network-pill">AI summary</span>
         </div>
       </section>
 
-      <div className="mode-grid" role="tablist" aria-label="Analyzer modes">
+      <div className="mode-grid modes-4" role="tablist" aria-label="Analyzer modes">
         <button
           type="button"
           className={`mode-card ${mode === "balance" ? "active" : ""}`}
@@ -329,7 +559,15 @@ export default function App() {
           onClick={() => setMode("transaction")}
         >
           <strong>Tx lookup</strong>
-          <span>Hash → value, gas, status, parties</span>
+          <span>Hash details + AI explanation</span>
+        </button>
+        <button
+          type="button"
+          className={`mode-card ${mode === "insights" ? "active" : ""}`}
+          onClick={() => setMode("insights")}
+        >
+          <strong>AI insights</strong>
+          <span>Wallet summary + ask about transfers</span>
         </button>
       </div>
 
@@ -409,18 +647,18 @@ export default function App() {
                 <div className="result-card">
                   <span className="label">Next step</span>
                   <div className="value" style={{ fontFamily: "var(--font-body)" }}>
-                    Open Transfer history to scan this wallet’s moves.
+                    Open AI insights for a wallet activity summary.
                   </div>
                   <button
                     type="button"
                     className="ghost-btn"
                     style={{ marginTop: "0.75rem" }}
                     onClick={() => {
-                      setActivityAddress(walletResult.wallet_address);
-                      setMode("activity");
+                      setInsightsAddress(walletResult.wallet_address);
+                      setMode("insights");
                     }}
                   >
-                    View activity
+                    Open AI insights
                   </button>
                 </div>
               )}
@@ -527,24 +765,40 @@ export default function App() {
                         </div>
                       </div>
 
-                      {transfer.hash && (
-                        <div className="transfer-actions">
-                          <button
-                            type="button"
-                            className="ghost-btn"
-                            onClick={() => openTransaction(transfer.hash)}
-                          >
-                            Open tx details
-                          </button>
-                          <button
-                            type="button"
-                            className="ghost-btn"
-                            onClick={() => navigator.clipboard.writeText(transfer.hash || "")}
-                          >
-                            Copy hash
-                          </button>
-                        </div>
-                      )}
+                      <div className="transfer-actions">
+                        {transfer.hash && (
+                          <>
+                            <button
+                              type="button"
+                              className="ghost-btn"
+                              onClick={() => openTransaction(transfer.hash)}
+                            >
+                              Open tx details
+                            </button>
+                            <button
+                              type="button"
+                              className="ghost-btn"
+                              onClick={() => navigator.clipboard.writeText(transfer.hash || "")}
+                            >
+                              Copy hash
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          className="ghost-btn"
+                          onClick={() => {
+                            setInsightsAddress(activityWallet);
+                            setInsightsTransfers(transfers);
+                            setSelectedTransferId(
+                              transfer.uniqueId || transfer.hash || `${index}`,
+                            );
+                            setMode("insights");
+                          }}
+                        >
+                          Ask about this
+                        </button>
+                      </div>
                     </article>
                   );
                 })}
@@ -560,7 +814,7 @@ export default function App() {
             <div>
               <h3>Look up a transaction</h3>
               <p className="hint">
-                Paste a transaction hash for sender, receiver, value, gas fee, and confirmation status.
+                Paste a transaction hash for details, then load an AI explanation and ask questions.
               </p>
             </div>
           </div>
@@ -644,6 +898,142 @@ export default function App() {
               {txDetails && (
                 <CopyableAddress label="Transaction hash" address={txDetails.transaction_hash} />
               )}
+            </div>
+          )}
+
+          {(txDetails || txReceipt) && (
+            <div className="ai-stack">
+              <div className="ai-box">
+                <div className="ai-box-head">
+                  <div>
+                    <div className="ai-box-title">AI transaction summary</div>
+                    <p className="ai-box-hint">
+                      Calls <code>GET /transactions/{"{tx_hash}"}/explanation</code>
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="ghost-btn"
+                    onClick={onLoadTxExplanation}
+                    disabled={txExplanationLoading}
+                  >
+                    {txExplanationLoading ? "Generating…" : "Generate summary"}
+                  </button>
+                </div>
+
+                {txExplanationError && <div className="message error">{txExplanationError}</div>}
+                {txExplanationLoading && (
+                  <div className="message info">
+                    <span className="loading-pulse">Asking Gemini to explain this transaction…</span>
+                  </div>
+                )}
+                {txExplanation && <div className="ai-prose">{txExplanation}</div>}
+                {!txExplanation && !txExplanationLoading && !txExplanationError && (
+                  <div className="chat-empty">Generate a summary to see the AI explanation here.</div>
+                )}
+              </div>
+
+              {preparedTxContext && <PreparedDataBox data={preparedTxContext} />}
+
+              <AskBox
+                messages={txMessages}
+                question={txQuestion}
+                setQuestion={setTxQuestion}
+                onAsk={onAskTxQuestion}
+                disabled={!preparedTxContext}
+                placeholder='e.g. "Who received the funds?" or "What was the amount?"'
+              />
+            </div>
+          )}
+        </section>
+      )}
+
+      {mode === "insights" && (
+        <section className="panel">
+          <div className="panel-head">
+            <div>
+              <h3>AI wallet insights</h3>
+              <p className="hint">
+                Loads the wallet activity summary (built with <code>prepare_transfer_data</code>),
+                shows prepared fields for a selected transfer, and lets you ask questions.
+              </p>
+            </div>
+          </div>
+
+          <form className="form-row" onSubmit={onLoadInsights}>
+            <input
+              type="text"
+              value={insightsAddress}
+              onChange={(e) => setInsightsAddress(e.target.value)}
+              placeholder="0x… wallet address"
+              spellCheck={false}
+              autoComplete="off"
+            />
+            <button className="btn" type="submit" disabled={insightsLoading}>
+              {insightsLoading ? "Summarizing…" : "Get AI summary"}
+            </button>
+          </form>
+
+          {insightsLoading && (
+            <div className="message info">
+              <span className="loading-pulse">Building wallet summary from recent transfers…</span>
+            </div>
+          )}
+          {insightsError && <div className="message error">{insightsError}</div>}
+
+          {(walletSummary || insightsTransfers.length > 0) && (
+            <div className="ai-stack">
+              <div className="ai-box">
+                <div className="ai-box-title">AI transaction summary</div>
+                <p className="ai-box-hint">
+                  Calls <code>GET /transactions/wallet/{"{address}"}/summary</code>
+                </p>
+                {walletSummary ? (
+                  <div className="ai-prose">{walletSummary}</div>
+                ) : (
+                  <div className="chat-empty">Summary unavailable for this wallet.</div>
+                )}
+              </div>
+
+              {insightsTransfers.length > 0 && (
+                <div className="ai-box">
+                  <div className="ai-box-title">Select a transfer for Q&amp;A</div>
+                  <p className="ai-box-hint">
+                    Choosing a row loads prepared transfer data for the ask box.
+                  </p>
+                  <div className="transfer-pick-list">
+                    {insightsTransfers.slice(0, 12).map((transfer, index) => {
+                      const id = transfer.uniqueId || transfer.hash || `${index}`;
+                      const active = selectedTransferId === id;
+                      return (
+                        <button
+                          type="button"
+                          key={id}
+                          className={`transfer-pick ${active ? "active" : ""}`}
+                          onClick={() => setSelectedTransferId(id)}
+                        >
+                          <span>{formatAmount(transfer)}</span>
+                          <small>
+                            {transfer.metadata?.blockTimestamp || transfer.category || "transfer"}
+                            {transfer.hash ? ` · ${shorten(transfer.hash, 8, 6)}` : ""}
+                          </small>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {preparedSelected && <PreparedDataBox data={preparedSelected} />}
+
+              <AskBox
+                messages={insightsMessages}
+                question={insightsQuestion}
+                setQuestion={setInsightsQuestion}
+                onAsk={onAskInsightsQuestion}
+                disabled={!preparedSelected && !walletSummary}
+                placeholder='e.g. "Who is the receiver?" or "Summarize the activity"'
+              />
             </div>
           )}
         </section>
