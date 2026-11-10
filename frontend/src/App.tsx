@@ -8,9 +8,12 @@ import {
   getTransactionReceipt,
   getUsdcBalance,
   getWalletActivitySummary,
+  getWalletRisk,
   getWalletTransfers,
+  normalizeWalletRisk,
   type AssetTransfer,
   type ConnectionStatus,
+  type RiskAnalysis,
   type TokenBalanceResult,
   type TransactionDetails,
   type TransactionReceipt,
@@ -22,12 +25,28 @@ import {
   type PreparedTransferData,
 } from "./prepare";
 
-type Mode = "balance" | "activity" | "transaction" | "insights";
+type Mode = "balance" | "activity" | "transaction" | "insights" | "risk";
 
 type ChatMessage = {
   role: "user" | "assistant";
   text: string;
 };
+
+/** Soften Markdown symbols from Gemini so ### / ** don't show raw. */
+function cleanAiText(text: string) {
+  return text
+    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/^\s*[\*\-]\s+/gm, "• ")
+    .trim();
+}
+
+function riskBadgeClass(level: string) {
+  const normalized = level.toLowerCase();
+  if (normalized === "high") return "risk-high";
+  if (normalized === "medium") return "risk-medium";
+  return "risk-low";
+}
 
 function shorten(value: string, left = 10, right = 8) {
   if (value.length <= left + right + 3) return value;
@@ -231,6 +250,13 @@ export default function App() {
   const [selectedTransferId, setSelectedTransferId] = useState<string | null>(null);
   const [insightsQuestion, setInsightsQuestion] = useState("");
   const [insightsMessages, setInsightsMessages] = useState<ChatMessage[]>([]);
+
+  const [riskAddress, setRiskAddress] = useState("");
+  const [riskLoading, setRiskLoading] = useState(false);
+  const [riskError, setRiskError] = useState<string | null>(null);
+  const [riskAnalysis, setRiskAnalysis] = useState<RiskAnalysis | null>(null);
+  const [riskExplanation, setRiskExplanation] = useState<string | null>(null);
+  const [riskAiUnavailable, setRiskAiUnavailable] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -479,6 +505,36 @@ export default function App() {
     setInsightsQuestion("");
   }
 
+  async function onLoadRisk(event: FormEvent) {
+    event.preventDefault();
+    setRiskError(null);
+    setRiskAnalysis(null);
+    setRiskExplanation(null);
+    setRiskAiUnavailable(false);
+
+    const address = riskAddress.trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+      setRiskError("Enter a valid Ethereum address (0x + 40 hex characters).");
+      return;
+    }
+
+    setRiskLoading(true);
+    try {
+      const raw = await getWalletRisk(address);
+      const normalized = normalizeWalletRisk(raw);
+      setRiskAnalysis(normalized.risk);
+      setRiskExplanation(normalized.explanation);
+      setRiskAiUnavailable(normalized.aiUnavailable);
+      if (!normalized.risk) {
+        setRiskError("Risk analysis returned no score data.");
+      }
+    } catch (err) {
+      setRiskError(err instanceof Error ? err.message : "Could not load risk analysis.");
+    } finally {
+      setRiskLoading(false);
+    }
+  }
+
   function openTransaction(hash?: string) {
     if (!hash) return;
     setTxHash(hash);
@@ -522,21 +578,22 @@ export default function App() {
       </header>
 
       <section className="hero">
-        <div className="hero-kicker">Ethereum first · AI summaries ready</div>
+        <div className="hero-kicker">Ethereum first · AI + risk ready</div>
         <h2>See the chain. Follow the money.</h2>
         <p>
-          Check balances, scan transfers, look up hashes, and read AI summaries built from prepared
-          transfer data.
+          Check balances, scan transfers, look up hashes, read AI summaries, and review wallet risk
+          findings.
         </p>
         <div className="network-row">
           <span className="network-pill">Ethereum</span>
           <span className="network-pill">USDC</span>
           <span className="network-pill">POL EX-MATIC</span>
           <span className="network-pill">AI summary</span>
+          <span className="network-pill">Risk score</span>
         </div>
       </section>
 
-      <div className="mode-grid modes-4" role="tablist" aria-label="Analyzer modes">
+      <div className="mode-grid modes-5" role="tablist" aria-label="Analyzer modes">
         <button
           type="button"
           className={`mode-card ${mode === "balance" ? "active" : ""}`}
@@ -568,6 +625,14 @@ export default function App() {
         >
           <strong>AI insights</strong>
           <span>Wallet summary + ask about transfers</span>
+        </button>
+        <button
+          type="button"
+          className={`mode-card ${mode === "risk" ? "active" : ""}`}
+          onClick={() => setMode("risk")}
+        >
+          <strong>Risk analysis</strong>
+          <span>Score, findings + AI explanation</span>
         </button>
       </div>
 
@@ -927,7 +992,7 @@ export default function App() {
                     <span className="loading-pulse">Asking Gemini to explain this transaction…</span>
                   </div>
                 )}
-                {txExplanation && <div className="ai-prose">{txExplanation}</div>}
+                {txExplanation && <div className="ai-prose">{cleanAiText(txExplanation)}</div>}
                 {!txExplanation && !txExplanationLoading && !txExplanationError && (
                   <div className="chat-empty">Generate a summary to see the AI explanation here.</div>
                 )}
@@ -989,7 +1054,7 @@ export default function App() {
                   Calls <code>GET /transactions/wallet/{"{address}"}/summary</code>
                 </p>
                 {walletSummary ? (
-                  <div className="ai-prose">{walletSummary}</div>
+                  <div className="ai-prose">{cleanAiText(walletSummary)}</div>
                 ) : (
                   <div className="chat-empty">Summary unavailable for this wallet.</div>
                 )}
@@ -1034,6 +1099,140 @@ export default function App() {
                 disabled={!preparedSelected && !walletSummary}
                 placeholder='e.g. "Who is the receiver?" or "Summarize the activity"'
               />
+            </div>
+          )}
+        </section>
+      )}
+
+      {mode === "risk" && (
+        <section className="panel">
+          <div className="panel-head">
+            <div>
+              <h3>Wallet risk analysis</h3>
+              <p className="hint">
+                Calls <code>GET /transactions/wallet/{"{address}"}/risk</code> for a rule-based
+                score plus an AI explanation of the findings.
+              </p>
+            </div>
+          </div>
+
+          <form className="form-row" onSubmit={onLoadRisk}>
+            <input
+              type="text"
+              value={riskAddress}
+              onChange={(e) => setRiskAddress(e.target.value)}
+              placeholder="0x… wallet address"
+              spellCheck={false}
+              autoComplete="off"
+            />
+            <button className="btn" type="submit" disabled={riskLoading}>
+              {riskLoading ? "Analyzing…" : "Analyze risk"}
+            </button>
+          </form>
+
+          {riskLoading && (
+            <div className="message info">
+              <span className="loading-pulse">Scoring wallet activity and asking AI to explain…</span>
+            </div>
+          )}
+          {riskError && <div className="message error">{riskError}</div>}
+          {riskAiUnavailable && riskAnalysis && (
+            <div className="message info">
+              AI summarizer was unavailable — showing the rule-based risk summary only.
+            </div>
+          )}
+
+          {riskAnalysis && (
+            <div className="ai-stack">
+              <div className="result-grid split">
+                <div className="result-card accent">
+                  <span className="label">Risk score</span>
+                  <div className="value large">{riskAnalysis.risk_score}</div>
+                </div>
+                <div className="result-card">
+                  <span className="label">Risk level</span>
+                  <div className="value">
+                    <span className={`badge ${riskBadgeClass(riskAnalysis.risk_level)}`}>
+                      {riskAnalysis.risk_level}
+                    </span>
+                  </div>
+                </div>
+                <CopyableAddress label="Wallet address" address={riskAnalysis.wallet_address} />
+              </div>
+
+              <div className="ai-box">
+                <div className="ai-box-title">Detected findings</div>
+                <p className="ai-box-hint">
+                  Repeated receivers, large ETH sends, and frequent-transfer windows from the risk
+                  rules.
+                </p>
+
+                <div className="section-title" style={{ marginTop: "0.4rem" }}>
+                  Repeated transfers
+                </div>
+                {riskAnalysis.findings.repeated_transfers.length === 0 ? (
+                  <div className="chat-empty">No repeated-transfer pattern detected.</div>
+                ) : (
+                  <div className="finding-list">
+                    {riskAnalysis.findings.repeated_transfers.map((item) => (
+                      <div className="finding-item" key={item.address}>
+                        <strong>{shorten(item.address)}</strong>
+                        <div>{item.transfer_count} transfers to this address</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="section-title">Large ETH transfers</div>
+                {riskAnalysis.findings.large_transfers.length === 0 ? (
+                  <div className="chat-empty">No large ETH transfers flagged.</div>
+                ) : (
+                  <div className="finding-list">
+                    {riskAnalysis.findings.large_transfers.map((item, index) => (
+                      <div
+                        className="finding-item"
+                        key={item.transaction_hash || `${item.receiver}-${index}`}
+                      >
+                        <strong>
+                          {item.amount} {item.asset || "ETH"}
+                        </strong>
+                        <div>
+                          To {item.receiver ? shorten(item.receiver) : "—"}
+                          {item.transaction_hash ? ` · ${shorten(item.transaction_hash, 8, 6)}` : ""}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="section-title">Frequent transfers</div>
+                {riskAnalysis.findings.frequent_transfers.length === 0 ? (
+                  <div className="chat-empty">No frequent-transfer window flagged.</div>
+                ) : (
+                  <div className="finding-list">
+                    {riskAnalysis.findings.frequent_transfers.map((item, index) => (
+                      <div className="finding-item" key={`${item.start_time}-${index}`}>
+                        <strong>
+                          {item.transfer_count} transfers in {item.time_window_minutes} minutes
+                        </strong>
+                        <div>Started at {item.start_time || "—"}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="ai-box">
+                <div className="ai-box-title">AI risk explanation</div>
+                <p className="ai-box-hint">
+                  Plain-language explanation of the score and flagged patterns.
+                </p>
+                {riskExplanation ? (
+                  <div className="ai-prose">{cleanAiText(riskExplanation)}</div>
+                ) : (
+                  <div className="chat-empty">No AI explanation returned for this run.</div>
+                )}
+              </div>
             </div>
           )}
         </section>

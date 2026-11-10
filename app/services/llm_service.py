@@ -115,4 +115,57 @@ def summarize_wallet_activity(transfers: list):
 
     return response.text
 
+# def summarize_wallet_risk_analysis(transfers: list,wallet_address: str):
+def explain_wallet_risk(risk_data: dict):
+
+    prompt = f"""
+    You are an Ethereum blockchain risk analyst.
+
+    Explain the following wallet risk analysis
+    in simple English.
+
+    Risk analysis data:
+    {json.dumps(risk_data)}
+
+    Explain using these sections:
+
+    1. Overall Risk Assessment:
+       Explain the risk score and risk level.
+
+    2. Detected Activities:
+       Explain each finding:
+       - Repeated transfers
+       - Large ETH transfers
+       - Frequent transfers
+
+    3. Why Was This Flagged?
+       Explain why the detected patterns were identified.
+
+    4. Important Disclaimer:
+       Explain that flagged activity does not prove fraud.
+
+    5. Recommended Investigation:
+       Suggest what the user should examine further.
+
+    Rules:
+    - Use simple English and clear headings.
+    - Use only the supplied data.
+    - Never invent missing information.
+    - Never change the Python-generated risk score.
+    - Do not claim that a wallet is fraudulent.
+    - If no findings exist, clearly say no patterns were detected
+      by the current rules.
+    """
+
+    response = client.models.generate_content(
+        model="gemini-3.5-flash-lite",
+        contents=prompt,
+        config={
+            "max_output_tokens": 300,
+            "temperature": 0
+        }
+    )
+
+    return response.text
+
 

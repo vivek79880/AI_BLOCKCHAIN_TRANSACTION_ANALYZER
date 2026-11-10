@@ -2,7 +2,8 @@ from fastapi import APIRouter, HTTPException
 from web3 import Web3
 from web3.exceptions import TransactionNotFound
 from app.services.transaction_service import get_transaction_details, get_transaction_receipt, validate_transaction_hash, get_wallet_transaction
-from app.services.llm_service import explain_transaction,summarize_wallet_activity
+from app.services.llm_service import explain_transaction,summarize_wallet_activity,explain_wallet_risk
+from app.services.risk_service import  calculate_risk_score
 
 transaction_router = APIRouter(prefix="/transactions",
     tags=["Transactions"])
@@ -64,7 +65,38 @@ def wallet_activity_summary(wallet_address: str):
         "summary": summary
     }
 
+# @transaction_router.get("/wallet{wallet_address}/risk")
+# def wallet_risk_analysis(wallet_address:str):
+#     transfers = get_wallet_transaction(wallet_address)
+#     result = calculate_risk_score(
+#     transfers,
+#     wallet_address)
+#     return result
 
+@transaction_router.get("/wallet/{wallet_address}/risk")
+def wallet_risk_analysis(wallet_address: str):
+
+    transfers = get_wallet_transaction(wallet_address)
+
+    risk_result = calculate_risk_score(
+        transfers,
+        wallet_address
+    )
+    try:
+        explanation = explain_wallet_risk(risk_result)
+        return {
+                "risk_analysis": risk_result,
+                "ai_explanation": explanation
+            }
+
+            
+
+            
+    except Exception:
+            return {
+                "Oops! ai summarizer is not working at the moment, here is your summary of the risk analysis": risk_result,
+                "ai explanation":"AI summarizer is unavailable right now"
+            }
 
 
 

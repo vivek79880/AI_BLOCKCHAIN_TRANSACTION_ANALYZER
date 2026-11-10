@@ -33,3 +33,4 @@ Vite proxies `/api/*` to FastAPI, so no CORS changes are needed in `app/`.
 |                    | `GET /transactions/{tx_hash}/explanation`     |
 | AI insights        | `GET /transactions/wallet/{address}/summary`  |
 |                    | (+ prepared transfer Q&A in the UI)           |
+| Risk analysis      | `GET /transactions/wallet/{address}/risk`     |

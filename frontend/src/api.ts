@@ -127,3 +127,68 @@ export function getTransactionExplanation(txHash: string) {
 export function getWalletActivitySummary(walletAddress: string) {
   return request<WalletActivitySummary>(`/transactions/wallet/${walletAddress}/summary`);
 }
+
+export type RepeatedTransferFinding = {
+  address: string;
+  transfer_count: number;
+};
+
+export type LargeTransferFinding = {
+  transaction_hash?: string;
+  receiver?: string | null;
+  amount?: number | string;
+  asset?: string;
+};
+
+export type FrequentTransferFinding = {
+  start_time?: string;
+  transfer_count?: number;
+  time_window_minutes?: number;
+};
+
+export type RiskAnalysis = {
+  wallet_address: string;
+  risk_score: number;
+  risk_level: string;
+  findings: {
+    repeated_transfers: RepeatedTransferFinding[];
+    large_transfers: LargeTransferFinding[];
+    frequent_transfers: FrequentTransferFinding[];
+  };
+};
+
+export type WalletRiskResponse = {
+  risk_analysis?: RiskAnalysis;
+  ai_explanation?: string;
+  // Fallback shape when AI summarizer fails
+  "Oops! ai summarizer is not working at the moment, here is your summary of the risk analysis"?: RiskAnalysis;
+  "ai explanation"?: string;
+};
+
+export function normalizeWalletRisk(raw: WalletRiskResponse): {
+  risk: RiskAnalysis | null;
+  explanation: string | null;
+  aiUnavailable: boolean;
+} {
+  if (raw.risk_analysis) {
+    return {
+      risk: raw.risk_analysis,
+      explanation: raw.ai_explanation ?? null,
+      aiUnavailable: false,
+    };
+  }
+
+  const fallbackRisk =
+    raw["Oops! ai summarizer is not working at the moment, here is your summary of the risk analysis"] ??
+    null;
+
+  return {
+    risk: fallbackRisk,
+    explanation: raw["ai explanation"] ?? null,
+    aiUnavailable: true,
+  };
+}
+
+export function getWalletRisk(walletAddress: string) {
+  return request<WalletRiskResponse>(`/transactions/wallet/${walletAddress}/risk`);
+}
