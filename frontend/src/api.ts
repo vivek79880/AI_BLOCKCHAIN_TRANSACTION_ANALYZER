@@ -1,4 +1,4 @@
-const API_BASE = "/api";
+const API_BASE = "https://ai-blockchain-backend.onrender.com";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
