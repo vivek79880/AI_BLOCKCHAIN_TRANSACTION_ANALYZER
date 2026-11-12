@@ -4,6 +4,7 @@ from web3.exceptions import TransactionNotFound
 from app.services.transaction_service import get_transaction_details, get_transaction_receipt, validate_transaction_hash, get_wallet_transaction
 from app.services.llm_service import explain_transaction,summarize_wallet_activity,explain_wallet_risk
 from app.services.risk_service import  calculate_risk_score
+from app.schemas.transactions import WalletQuestionRequest
 
 transaction_router = APIRouter(prefix="/transactions",
     tags=["Transactions"])
@@ -65,14 +66,6 @@ def wallet_activity_summary(wallet_address: str):
         "summary": summary
     }
 
-# @transaction_router.get("/wallet{wallet_address}/risk")
-# def wallet_risk_analysis(wallet_address:str):
-#     transfers = get_wallet_transaction(wallet_address)
-#     result = calculate_risk_score(
-#     transfers,
-#     wallet_address)
-#     return result
-
 @transaction_router.get("/wallet/{wallet_address}/risk")
 def wallet_risk_analysis(wallet_address: str):
 
@@ -98,6 +91,18 @@ def wallet_risk_analysis(wallet_address: str):
                 "ai explanation":"AI summarizer is unavailable right now"
             }
 
+@transaction_router.post("/wallet/{wallet_address}/ask")
+def wallet_activity_qa(
+    wallet_address: str,
+    request: WalletQuestionRequest
+):
+    transfers = get_wallet_transaction(wallet_address)
+    return {
+        "wallet_address": wallet_address,
+        "question": request.question,
+        "transfers": transfers
+    }
+@transaction_router.get("/wallet")
 
 
 

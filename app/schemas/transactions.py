@@ -4,4 +4,11 @@
 #     tx_hash: str = Field(
 #         pattern=r"^0x[a-fA-F0-9]{64}$"
 #     )
+from pydantic import BaseModel
+class WalletQuestionRequest(BaseModel):
+    question: str 
+
+
+
+
 

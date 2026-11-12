@@ -57,8 +57,8 @@ def get_wallet_transaction(wallet_address:str):
         if "error" in received_response:
             raise Exception(received_response["error"]["message"])
         
-        result = response["result"]
-        outgoing.extend(result["transfers"])
+        result = received_response["result"]
+        incoming.extend(result["transfers"])
 
         page_key = result.get("pageKey")
 
@@ -66,7 +66,7 @@ def get_wallet_transaction(wallet_address:str):
             break
 
     outgoing = response["result"]["transfers"]
-    incoming = received_response["result"]["transfers"]
+    # incoming = received_response["result"]["transfers"]
 
     all_transfers = outgoing + incoming
     unique_transfers = {
