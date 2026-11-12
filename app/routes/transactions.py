@@ -5,6 +5,11 @@ from app.services.transaction_service import get_transaction_details, get_transa
 from app.services.llm_service import explain_transaction,summarize_wallet_activity,explain_wallet_risk
 from app.services.risk_service import  calculate_risk_score
 from app.schemas.transactions import WalletQuestionRequest
+from app.services.llm_service import (
+    detect_wallet_question_intent,
+    answer_wallet_question
+)
+from app.services.wallet_qa_service import execute_wallet_intent
 
 transaction_router = APIRouter(prefix="/transactions",
     tags=["Transactions"])
@@ -92,17 +97,22 @@ def wallet_risk_analysis(wallet_address: str):
             }
 
 @transaction_router.post("/wallet/{wallet_address}/ask")
-def wallet_activity_qa(
-    wallet_address: str,
-    request: WalletQuestionRequest
-):
+def wallet_activity_qa(wallet_address: str,request: WalletQuestionRequest):
+    intent_data = detect_wallet_question_intent(request.question)
     transfers = get_wallet_transaction(wallet_address)
+    result = execute_wallet_intent(
+    intent_data,
+    transfers,
+    wallet_address)
+    answer = answer_wallet_question(
+    request.question,
+    result)
     return {
         "wallet_address": wallet_address,
         "question": request.question,
         "transfers": transfers
     }
-@transaction_router.get("/wallet")
+
 
 
 

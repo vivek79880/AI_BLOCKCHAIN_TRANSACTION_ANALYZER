@@ -46,3 +46,71 @@ AI helps explain patterns such as:
 - Sudden large transfers.
 - Repeated transfers to unfamiliar addresses.
 - Unusual transaction frequency.
+
+
+
+-----------------------------------------------------------------------------------------------------
+
+AI Blockchain Transaction Analyzer — Progress
+Completed
+In progress
+Pending
+
+Topic	Status
+1. Python and project setup	Completed
+2. FastAPI fundamentals and project structure	Completed
+3. Ethereum connection using Web3.py and Alchemy	Completed
+4. Wallet transactions, transaction details and receipts	Completed
+5. ERC-20 token data and transfers	Partially covered
+6. PostgreSQL and SQLAlchemy	Pending
+7. LLM integration and AI-powered explanations	Core features implemented
+8. RAG and embeddings	Pending
+9. Risk detection and wallet analysis	Core features implemented
+10. Testing, Docker and deployment improvements	Partially completed
+
+Wallet Activity Q&A progress
+Feature	Status
+Question-first architecture	Completed
+Pydantic request model	Completed
+Gemini intent detection	Implemented
+Largest transaction intent	Implemented
+Python intent dispatcher	Implemented
+Natural-language answer generation	Implemented
+Zero-value transaction intent	Skipped
+Total ETH received calculation	Skipped
+Total ETH sent	Not implemented
+Most interacted address	Not implemented
+Intent-response validation and error handling	Pending
+
+------------------------R A G ------------------------
+
+1. Transaction-related questions
+- Why did this transaction fail?
+- Explain this transaction in simple English.
+- What was the purpose of this transaction?
+- Which transactions involved the highest gas fees?
+2. Wallet activity
+- What is the wallet's most common activity?
+- Which addresses does this wallet interact with frequently?
+- Has this wallet interacted with any suspicious addresses?
+- How has this wallet's activity changed over time?
+3. Blockchain knowledge
+- What is an ERC-20 token?
+- Why do Ethereum transactions require gas?
+- What is the difference between ETH and WETH?
+- How does a smart contract execute?
+4. Risk analysis
+- Why was this wallet assigned a high-risk score?
+- What patterns make this transaction unusual?
+- Has this wallet interacted with known scam addresses?
+- What are the possible risks of interacting with this contract?
+One important distinction
+Not every question needs RAG.
+Question	Best approach
+What is my ETH balance?	Direct blockchain API
+What was my largest transaction?	Python calculation
+Explain this transaction	LLM + retrieved transaction data
+What is an ERC-20 token?	RAG + LLM
+Explain why this wallet looks risky	Risk analysis + LLM
+
+Remember: RAG is particularly useful when answers depend on searching through a collection of information, rather than simply calculating a value.
